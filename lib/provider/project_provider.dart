@@ -46,6 +46,7 @@ class ProjectProvider with ChangeNotifier {
     }
   }
 
+
   // Récupérer les projets
   Stream<List<Project>> fetchProjects() {
     return _firestore
