@@ -1,38 +1,67 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
 
 class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
   User? _user;
 
   User? get user => _user;
 
-
-  Future<bool> signInWithEmail(String email, String password) async {
+  Future<String?> signInWithEmail(String email, String password) async {
     try {
-      print("Tentative de connexion avec l'email: $email");
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+      UserCredential result = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
-
-      _user = userCredential.user; // L'utilisateur connecté
-      print("Utilisateur connecté: ${_user?.email}");
+      _user = result.user;
       notifyListeners();
-      return true; // Connexion réussie
+      return null;
     } catch (e) {
-      print("Erreur de connexion: $e");
-      _user = null;
-      notifyListeners();
-      return false; // Connexion échouée
+      return "Erreur de connexion : ${e.toString()}";
     }
   }
 
-  Future<void> signUpWithEmail(String email, String password) async {
-    _user = await _authService.signUpWithEmail(email, password);
-    notifyListeners();
+  Future<User?> signUpWithEmail(String email, String password, String name) async {
+    try {
+      UserCredential result = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      User user = result.user!;
+
+      // Créer un profil par défaut dans Firestore
+      await FirebaseFirestore.instance.collection("users").doc(user.uid).set({
+        "name": name,
+        "email": email,
+        "role": "user",  // Rôle par défaut
+        "photoUrl": null,  // Pas de photo initiale (peut être une image par défaut)
+        "createdAt": FieldValue.serverTimestamp(),
+      });
+
+      await user.sendEmailVerification();  // Envoi de l'email de vérification
+      return user;
+    } catch (e) {
+      print(e.toString());
+      return null;
+    }
+  }
+
+
+  Future<String?> getUserRole(String uid) async {
+    try {
+      DocumentSnapshot doc = await _firestore.collection("users").doc(uid).get();
+      if (doc.exists && doc.data() != null) {
+        return doc["role"] as String?;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
   }
 
   Future<void> signOut() async {
@@ -40,4 +69,5 @@ class AuthProvider with ChangeNotifier {
     _user = null;
     notifyListeners();
   }
+
 }

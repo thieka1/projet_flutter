@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../models/project.dart';
+import '../provider/project_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -24,118 +27,221 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'SunuProjet',
-          style: TextStyle(color: Colors.white), // Titre en blanc
-        ),
-        backgroundColor: Colors.blueAccent, // Couleur de l'AppBar
-        iconTheme: IconThemeData(color: Colors.white), // Icônes (y compris l'icône du drawer) en blanc
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white, // Couleur du soulignement des onglets
-          labelColor: Colors.white, // Couleur du texte des onglets (sélectionné)
-          unselectedLabelColor: Colors.white.withOpacity(0.6), // Couleur du texte des onglets non sélectionnés
-          tabs: [
-            Tab(text: 'En attente'),
-            Tab(text: 'En cours'),
-            Tab(text: 'Terminés'),
-            Tab(text: 'Annulés'),
-          ],
-        ),
-      ),
-      drawer: Drawer(
-        backgroundColor: Colors.white, // Couleur de fond blanche du Drawer
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            // En-tête du Drawer
-            DrawerHeader(
-              decoration: BoxDecoration(
-                color: Colors.blueAccent, // Couleur de fond de l'en-tête
-              ),
-              child: Text(
-                'Menu',
-                style: TextStyle(
-                  color: Colors.white, // Texte de l'en-tête en blanc
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            // Éléments de menu avec séparation claire
-            _buildDrawerItem(Icons.home, 'Accueil', onTap: () {
-              // Naviguer ou gérer une action pour "Accueil"
-            }),
-            _buildDrawerItem(Icons.settings, 'Paramètres', onTap: () {
-              // Naviguer ou gérer une action pour "Paramètres"
-            }),
-            _buildDrawerItem(Icons.logout, 'Déconnexion', onTap: () {
-              // Gérer la déconnexion
-            }),
-          ],
-        ),
-      ),
-      body: Column(
-        children: [
-          // Barre de recherche
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
-            child: Center(
-              child: Container(
-                width: 350, // Longueur réduite de la barre de recherche
+    // On utilise StreamBuilder pour écouter les projets en temps réel
+    return StreamBuilder<List<Project>>(
+      stream: Provider.of<ProjectProvider>(context, listen: false)
+          .fetchProjects(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            appBar: _buildAppBar(),
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: _buildAppBar(),
+            body: Center(child: Text("Erreur lors du chargement des projets")),
+          );
+        }
+        final projects = snapshot.data ?? [];
+        // Filtrage par statut
+        final enAttente = projects.where((p) => p.status == 'En attente')
+            .toList();
+        final enCours = projects.where((p) => p.status == 'En cours').toList();
+        final termines = projects.where((p) => p.status == 'Terminés').toList();
+        final annules = projects.where((p) => p.status == 'Annulés').toList();
+
+        return Scaffold(
+          appBar: _buildAppBar(),
+          drawer: _buildDrawer(),
+          body: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    vertical: 8.0, horizontal: 8.0),
                 child: TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
                     hintText: 'Rechercher un projet...',
                     prefixIcon: Icon(Icons.search),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10.0)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10.0)),
                   ),
+                  onChanged: (value) {
+                    // Implémente la recherche si nécessaire
+                  },
                 ),
               ),
-            ),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildProjectList(enAttente),
+                    _buildProjectList(enCours),
+                    _buildProjectList(termines),
+                    _buildProjectList(annules),
+                  ],
+                ),
+              ),
+            ],
           ),
-          // Vue des onglets
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildEmptyState('En attente'),
-                _buildEmptyState('En cours'),
-                _buildEmptyState('Terminés'),
-                _buildEmptyState('Annulés'),
-              ],
-            ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: () {
+              Navigator.pushNamed(context, '/createproject');
+            },
+            child: Icon(Icons.add),
+            backgroundColor: Colors.blueAccent,
           ),
+        );
+      },
+    );
+  }
+
+  AppBar _buildAppBar() {
+    return AppBar(
+      title: Text('SunuProjet', style: TextStyle(color: Colors.white)),
+      backgroundColor: Colors.blueAccent,
+      bottom: TabBar(
+        controller: _tabController,
+        indicatorColor: Colors.white,
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.white.withOpacity(0.6),
+        tabs: [
+          Tab(text: 'En attente'),
+          Tab(text: 'En cours'),
+          Tab(text: 'Terminés'),
+          Tab(text: 'Annulés'),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Navigue vers la page pour créer un projet
-          Navigator.pushNamed(context, '/createproject');
-        },
-        child: Icon(Icons.add),
-        backgroundColor: Colors.blue, // Couleur du bouton flottant
+      actions: [
+        IconButton(
+          icon: Icon(Icons.account_circle, color: Colors.white),
+          onPressed: () {
+            Navigator.pushNamed(context, '/profile');
+          },
+        ),
+      ],
+    );
+  }
+
+  Drawer _buildDrawer() {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          DrawerHeader(
+            decoration: BoxDecoration(color: Colors.blueAccent),
+            child: Text('Menu',
+              style: TextStyle(color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold),
+            ),
+          ),
+          _buildDrawerItem(Icons.home, 'Accueil', onTap: () {}),
+          _buildDrawerItem(Icons.settings, 'Paramètres', onTap: () {}),
+          _buildDrawerItem(Icons.logout, 'Déconnexion', onTap: () {}),
+        ],
       ),
     );
   }
 
-  // Widget pour afficher l'état vide
-  Widget _buildEmptyState(String status) {
+  Widget _buildDrawerItem(IconData icon, String title,
+      {required VoidCallback onTap}) {
+    return ListTile(
+      leading: Icon(icon, color: Colors.blueAccent),
+      title: Text(title, style: TextStyle(color: Colors.black, fontSize: 16)),
+      onTap: onTap,
+      tileColor: Colors.white,
+      shape: Border(bottom: BorderSide(color: Colors.grey.shade200, width: 1)),
+      contentPadding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
+    );
+  }
+
+  Widget _buildProjectList(List<Project> projects) {
+    if (projects.isEmpty) {
+      return _buildEmptyState();
+    }
+    return ListView.builder(
+      itemCount: projects.length,
+      itemBuilder: (context, index) {
+        final project = projects[index];
+        return Card(
+          elevation: 4,
+          margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15.0)),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(project.title,
+                      style: TextStyle(fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blueAccent),
+                    ),
+                    Container(
+                      padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                      decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: Colors.blueAccent),
+                      child: Text(project.priority,
+                        style: TextStyle(color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 8),
+                Text(project.description,
+                    style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("Date limite : ${project.endDate.day}/${project.endDate
+                        .month}/${project.endDate.year}",
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.add, color: Colors.blueAccent),
+                      onPressed: () {
+                        _showAddMemberDialog(
+                            project); // Ouvrir le dialog pour ajouter un membre
+                      },
+                    ),
+                  ],
+                ),
+                SizedBox(height: 8),
+                LinearProgressIndicator(
+                  backgroundColor: Colors.grey[300],
+                  color: Colors.blueAccent,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.folder, size: 100, color: Colors.grey),
           SizedBox(height: 20),
-          Text(
-            'Aucun projet trouvé',
+          Text('Aucun projet trouvé',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           SizedBox(height: 10),
-          Text(
-            'Créez un nouveau projet pour commencer',
+          Text('Créez un nouveau projet pour commencer',
             style: TextStyle(fontSize: 16, color: Colors.grey),
             textAlign: TextAlign.center,
           ),
@@ -144,23 +250,63 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  // Fonction pour créer un ListTile avec bordure blanche
-  Widget _buildDrawerItem(IconData icon, String title, {required VoidCallback onTap}) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.blueAccent), // Icône bleue
-      title: Text(
-        title,
-        style: TextStyle(
-          color: Colors.black, // Texte noir pour un bon contraste
-          fontSize: 16,
-        ),
-      ),
-      onTap: onTap,
-      tileColor: Colors.white, // Fond blanc de chaque élément
-      shape: Border(
-        bottom: BorderSide(color: Colors.grey.shade200, width: 1), // Ligne fine en bas pour la séparation
-      ),
-      contentPadding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0), // Espacement interne
+  void _showAddMemberDialog(Project project) {
+    final TextEditingController _emailController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Ajouter un membre'),
+          content: TextField(
+            controller: _emailController,
+            decoration: InputDecoration(
+              hintText: 'Email du membre',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                String email = _emailController.text.trim();
+                _addMemberToProject(project, email); // Ajouter le membre
+                Navigator.pop(context); // Fermer le dialog
+              },
+              child: Text('Ajouter'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Fermer sans ajouter
+              },
+              child: Text('Annuler'),
+            ),
+          ],
+        );
+      },
     );
   }
+
+
+  void _addMemberToProject(Project project, String email) {
+    if (email.isEmpty || project.members.containsKey(email)) {
+      print("Erreur: Membre déjà ajouté ou email vide");
+      return;
+    }
+
+    // Ajoute le membre à la Map
+    project.members[email] = 'Membre';
+
+    // Affichage des membres avant mise à jour
+    print("Membres avant mise à jour: ${project.members}");
+
+    // Met à jour le projet dans le provider
+    Provider.of<ProjectProvider>(context, listen: false).updateProject(project);
+
+    // Affichage des membres après mise à jour
+    print("Membres après mise à jour: ${project.members}");
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Membre ajouté au projet avec succès')),
+    );
+  }
+
 }

@@ -13,28 +13,24 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _errorMessage; // Stocke le message d'erreur
 
   Future<void> _login() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    // Efface le message d'erreur précédent
-    setState(() {
-      _errorMessage = null;
-    });
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final error = await authProvider.signInWithEmail(_emailController.text, _passwordController.text);
 
-    // Tentative de connexion
-    var user = await authProvider.signInWithEmail(
-      _emailController.text,
-      _passwordController.text,
-    );
-
-    if (user != null) {
-      // Connexion réussie, navigue vers l'écran principal
-      Navigator.pushReplacementNamed(context, '/home');
-    } else {
-      // Affiche un message d'erreur
-      setState(() {
-        _errorMessage = "Échec de la connexion. Vérifiez vos informations.";
-      });
+      if (error == null) {
+        // Connexion réussie, redirection vers l'écran principal
+        Navigator.pushReplacementNamed(context, '/home');
+      } else {
+        // Afficher l'erreur de connexion
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      }
+    } catch (e) {
+      // Gérer les erreurs de manière plus détaillée
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur lors de la connexion : ${e.toString()}')));
     }
   }
+
+
 
 
   @override

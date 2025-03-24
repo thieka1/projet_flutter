@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../models/project.dart';
+import '../provider/project_provider.dart';
 
 class CreateProjectPage extends StatefulWidget {
   @override
@@ -8,10 +11,14 @@ class CreateProjectPage extends StatefulWidget {
 class _CreateProjectPageState extends State<CreateProjectPage> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+
   DateTime? _startDate;
   DateTime? _endDate;
   String _selectedPriority = 'Moyenne';
   final List<String> _priorities = ['Basse', 'Moyenne', 'Haute', 'Urgente'];
+
+  Map<String, String> _selectedMembers = {};
 
   Future<void> _selectDate(BuildContext context, bool isStartDate) async {
     final DateTime? picked = await showDatePicker(
@@ -28,6 +35,73 @@ class _CreateProjectPageState extends State<CreateProjectPage> {
           _endDate = picked;
         }
       });
+    }
+  }
+
+  void _addMember() {
+    String email = _emailController.text.trim();
+    if (email.isEmpty || _selectedMembers.containsKey(email)) {
+      return;
+    }
+
+    setState(() {
+      _selectedMembers[email] = 'Membre';
+      _emailController.clear();
+    });
+  }
+
+  void _removeMember(String email) {
+    setState(() {
+      _selectedMembers.remove(email);
+    });
+  }
+
+  void _handleCreateProject() async {
+    if (_titleController.text.isEmpty ||
+        _descriptionController.text.isEmpty ||
+        _startDate == null ||
+        _endDate == null ||
+        _selectedMembers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Veuillez remplir tous les champs et ajouter au moins un membre.")),
+      );
+      return;
+    }
+
+    if (_startDate!.isAfter(_endDate!)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("La date de fin doit être après la date de début.")),
+      );
+      return;
+    }
+
+    final project = Project(
+      id: "",
+      title: _titleController.text,
+      description: _descriptionController.text,
+      startDate: _startDate!,
+      endDate: _endDate!,
+      priority: _selectedPriority,
+      status: "En attente",
+      members: _selectedMembers,
+    );
+
+    try {
+      await Provider.of<ProjectProvider>(context, listen: false).addProject(project);
+
+      // Actualiser la liste des projets après l'ajout
+      await Provider.of<ProjectProvider>(context, listen: false).fetchProjects();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Projet créé avec succès !")),
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      print("Erreur: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur lors de la création du projet.")),
+      );
     }
   }
 
@@ -57,27 +131,38 @@ class _CreateProjectPageState extends State<CreateProjectPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   _buildDatePicker("Date de début", _startDate, () => _selectDate(context, true)),
+                  SizedBox(width: 10),
                   _buildDatePicker("Date de fin", _endDate, () => _selectDate(context, false)),
                 ],
               ),
               SizedBox(height: 20),
               Text("Priorité", style: TextStyle(fontWeight: FontWeight.bold)),
               _buildPrioritySelector(),
+              SizedBox(height: 20),
+              Text("Ajouter des membres", style: TextStyle(fontWeight: FontWeight.bold)),
+              Row(
+                children: [
+                  Expanded(child: _buildTextField(_emailController, "Email du membre", Icons.person)),
+                  IconButton(
+                    icon: Icon(Icons.add, color: Colors.blueAccent),
+                    onPressed: _addMember,
+                  ),
+                ],
+              ),
+              SizedBox(height: 10),
+              _buildMemberList(),
               SizedBox(height: 30),
-            ElevatedButton(
-              onPressed: _handleCreateProject,
-              child: Text(
-                "Créer le projet",
-                style: TextStyle(
-                  color: Colors.white, // Le texte sera en blanc
-                  fontWeight: FontWeight.bold, // Le texte sera en gras
+              ElevatedButton(
+                onPressed: _handleCreateProject,
+                child: Text(
+                  "Créer le projet",
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: Size(double.infinity, 50),
+                  backgroundColor: Colors.blueAccent,
                 ),
               ),
-              style: ElevatedButton.styleFrom(
-                minimumSize: Size(double.infinity, 50),
-                backgroundColor: Colors.blueAccent,
-              ),
-            )
             ],
           ),
         ),
@@ -136,25 +221,22 @@ class _CreateProjectPageState extends State<CreateProjectPage> {
     );
   }
 
-  void _handleCreateProject() {
-    if (_titleController.text.isEmpty ||
-        _descriptionController.text.isEmpty ||
-        _startDate == null ||
-        _endDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Veuillez remplir tous les champs.")),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Projet créé avec succès !")),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
+  Widget _buildMemberList() {
+    return Column(
+      children: _selectedMembers.keys.map((email) {
+        return Card(
+          margin: EdgeInsets.symmetric(vertical: 5),
+          child: ListTile(
+            leading: Icon(Icons.person),
+            title: Text(email),
+            subtitle: Text(_selectedMembers[email]!),
+            trailing: IconButton(
+              icon: Icon(Icons.remove_circle, color: Colors.red),
+              onPressed: () => _removeMember(email),
+            ),
+          ),
+        );
+      }).toList(),
+    );
   }
 }
