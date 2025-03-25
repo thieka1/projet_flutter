@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/project.dart';
 import '../provider/project_provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class CreateProjectPage extends StatefulWidget {
   @override
@@ -38,17 +40,52 @@ class _CreateProjectPageState extends State<CreateProjectPage> {
     }
   }
 
-  void _addMember() {
+  void _addMember() async {
     String email = _emailController.text.trim();
-    if (email.isEmpty || _selectedMembers.containsKey(email)) {
+
+    // Vérification si l'email est vide
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("L'email ne peut pas être vide")),
+      );
       return;
     }
 
-    setState(() {
-      _selectedMembers[email] = 'Membre';
-      _emailController.clear();
-    });
+    // Vérification du format de l'email avec une expression régulière
+
+
+    // Vérification si l'email est déjà ajouté
+    if (_selectedMembers.containsKey(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Ce membre a déjà été ajouté")),
+      );
+      return;
+    }
+
+    try {
+      QuerySnapshot userDocs = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: email.toLowerCase())
+          .get();
+      if (userDocs.docs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("L'utilisateur avec cet email n'existe pas")),
+        );
+        return;
+      }
+
+      setState(() {
+        _selectedMembers[email] = 'Membre';
+        _emailController.clear();
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur lors de l'ajout du membre : $e")),
+      );
+    }
   }
+
+
 
   void _removeMember(String email) {
     setState(() {
@@ -100,7 +137,7 @@ class _CreateProjectPageState extends State<CreateProjectPage> {
     } catch (e) {
       print("Erreur: $e");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur lors de la création du projet.")),
+        SnackBar(content: Text("Erreur lors de la création du projet: $e")),
       );
     }
   }
@@ -239,4 +276,7 @@ class _CreateProjectPageState extends State<CreateProjectPage> {
       }).toList(),
     );
   }
+
+
+
 }

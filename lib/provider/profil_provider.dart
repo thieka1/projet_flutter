@@ -86,5 +86,6 @@ class UserProfileProvider with ChangeNotifier {
       return '';
     }
   }
+  
 }
 

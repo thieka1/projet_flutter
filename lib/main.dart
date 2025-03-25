@@ -7,8 +7,10 @@ import 'package:gestion_des_projets/screens/create_project_screen.dart';
 import 'package:gestion_des_projets/screens/home_screen.dart';
 import 'package:gestion_des_projets/screens/login_screen.dart';
 import 'package:gestion_des_projets/screens/profi_screen.dart';
+import 'package:gestion_des_projets/screens/Detais_project_screen.dart';
 import 'package:gestion_des_projets/screens/signup_screen.dart';
 import 'package:provider/provider.dart'; // Import de provider
+import 'package:gestion_des_projets/screens/Detais_project_screen.dart';
 
 void main() async {
   // Assurez-vous que Firebase est bien initialisé avant de lancer l'application
@@ -46,6 +48,7 @@ class MyApp extends StatelessWidget {
           '/createproject': (context) => CreateProjectPage(),
           '/signup': (context) => SignUpScreen(),
           '/profile': (context) => ProfileScreen(),
+          '/projectprofil': (context) => ProfilProjectPage(),
         },
       ),
     );

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/project.dart';
 import '../provider/project_provider.dart';
 
+
 class HomeScreen extends StatefulWidget {
   @override
   _HomeScreenState createState() => _HomeScreenState();
@@ -46,8 +47,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         }
         final projects = snapshot.data ?? [];
         // Filtrage par statut
-        final enAttente = projects.where((p) => p.status == 'En attente')
-            .toList();
+        final enAttente = projects.where((p) => p.status == 'En attente').toList();
         final enCours = projects.where((p) => p.status == 'En cours').toList();
         final termines = projects.where((p) => p.status == 'Terminés').toList();
         final annules = projects.where((p) => p.status == 'Annulés').toList();
@@ -169,8 +169,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         return Card(
           elevation: 4,
           margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15.0)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
           child: Padding(
             padding: const EdgeInsets.all(12.0),
             child: Column(
@@ -179,18 +178,23 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(project.title,
-                      style: TextStyle(fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blueAccent),
+                    Text(
+                      project.title,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blueAccent,
+                      ),
                     ),
                     Container(
                       padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                       decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
                           color: Colors.blueAccent),
-                      child: Text(project.priority,
-                        style: TextStyle(color: Colors.white,
+                      child: Text(
+                        project.priority,
+                        style: TextStyle(
+                            color: Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 12),
                       ),
@@ -198,22 +202,35 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   ],
                 ),
                 SizedBox(height: 8),
-                Text(project.description,
-                    style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                Text(
+                  project.description,
+                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                ),
                 SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text("Date limite : ${project.endDate.day}/${project.endDate
-                        .month}/${project.endDate.year}",
+                    Text(
+                      "Date limite : ${project.endDate.day}/${project.endDate.month}/${project.endDate.year}",
                       style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                     ),
-                    IconButton(
-                      icon: Icon(Icons.add, color: Colors.blueAccent),
-                      onPressed: () {
-                        _showAddMemberDialog(
-                            project); // Ouvrir le dialog pour ajouter un membre
-                      },
+                    Align(
+                      alignment: Alignment.bottomLeft,
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.account_circle,
+                          size: 24,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () {
+                          Navigator.pushNamed(
+                            context,
+                            '/projectprofil',
+                            arguments: project,  // Passez bien l'objet 'Project' et non une chaîne
+                          );
+
+                        }
+                      ),
                     ),
                   ],
                 ),

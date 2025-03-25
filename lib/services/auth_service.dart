@@ -55,4 +55,5 @@ class AuthService {
       print("Erreur de mise à jour de l'image : ${e.toString()}");
     }
   }
+
 }
