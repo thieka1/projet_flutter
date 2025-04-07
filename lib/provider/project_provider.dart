@@ -1,9 +1,14 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/project.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:gestion_des_projets/models/file_Model.dart';
+import 'package:file_picker/file_picker.dart';
 
 class ProjectProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -156,37 +161,113 @@ class ProjectProvider with ChangeNotifier {
 
   Future<Map<String, String>> getUserByEmail(String email) async {
     try {
-      // Récupérer le document de l'utilisateur depuis Firestore
-      DocumentSnapshot<Map<String, dynamic>> snapshot = await FirebaseFirestore.instance
+      print("Tentative de récupération des données pour l'email: $email");
+
+      // Effectuer une requête où l'email est un champ dans le document
+      QuerySnapshot<Map<String, dynamic>> snapshot = await FirebaseFirestore.instance
           .collection('users')
-          .doc(email) // Utiliser l'email comme ID du document
+          .where('email', isEqualTo: email)  // Chercher par email dans le champ 'email'
           .get();
 
-      // Vérifier si le document existe
-      if (snapshot.exists) {
-        var userData = snapshot.data();
-
-        // Ajouter des logs pour voir les données récupérées
+      // Vérifier si des documents ont été trouvés
+      if (snapshot.docs.isNotEmpty) {
+        var userData = snapshot.docs.first.data();  // Prendre le premier document
         print("Données utilisateur récupérées : $userData");
 
-        // Vérifier si le champ 'name' existe et le récupérer
-        String name = userData?['name'] ?? "Nom inconnu";  // Récupérer le champ 'name'
+        String name = userData['name'] ?? "Nom inconnu";  // Si 'name' est null, utiliser "Nom inconnu"
+        print("Nom récupéré : $name");
 
-        // Log des valeurs récupérées
-        print("Nom complet : $name");
-
-        return {'name': name};  // Retourner le nom complet
+        return {'name': name};  // Retourner le nom
       } else {
-        // Si l'utilisateur n'existe pas dans Firestore, renvoyer des valeurs par défaut
-        print("Aucun utilisateur trouvé avec l'email $email");  // Log si aucun utilisateur trouvé
-        return {'name': "Nom inconnu"};  // Valeur par défaut
+        print("Aucun utilisateur trouvé avec l'email: $email");
+        return {'name': "Nom inconnu"};  // Retourner une valeur par défaut
       }
     } catch (e) {
-      // Si une erreur se produit lors de la récupération des données
       print("Erreur lors de la récupération des données utilisateur: $e");
-      return {'name': "Nom inconnu"};  // Valeur par défaut en cas d'erreur
+      return {'name': "Nom inconnu"};  // Retourner une valeur par défaut en cas d'erreur
     }
   }
+
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  Future<void> uploadFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx'],
+    );
+
+    if (result != null && result.files.single.path != null) {
+      File file = File(result.files.single.path!);
+      String fileName = result.files.single.name;
+      double fileSize = (file.lengthSync() / (1024 * 1024)); // Convertir en Mo
+      String userId = _auth.currentUser?.uid ?? "Inconnu";
+
+      try {
+        // 🔹 2. Upload sur Firebase Storage
+        TaskSnapshot uploadTask = await _storage
+            .ref('uploads/$fileName')
+            .putFile(file);
+
+        // 🔹 3. Récupérer l'URL du fichier
+        String downloadUrl = await uploadTask.ref.getDownloadURL();
+
+        // 🔹 4. Enregistrer dans Firestore
+        await _firestore.collection('fichiers').add({
+          'nom': fileName,
+          'url': downloadUrl,
+          'taille': fileSize,
+          'userId': userId,
+          'dateAjout': FieldValue.serverTimestamp(),
+        });
+
+        print("Fichier uploadé avec succès !");
+      } catch (e) {
+        print("Erreur lors de l'upload : $e");
+      }
+    } else {
+      print("Aucun fichier sélectionné.");
+    }
+  }
+
+  // 🔹 5. Récupérer la liste des fichiers
+  Stream<List<FichierModel>> getFiles() {
+    return _firestore.collection('fichiers').orderBy('dateAjout', descending: true).snapshots().map(
+          (snapshot) => snapshot.docs.map((doc) => FichierModel.fromFirestore(doc)).toList(),
+    );
+  }
+
+
+
+  // Méthode pour mettre à jour le rôle d'un membre dans le projet
+  void updateMemberRole(BuildContext context, Project project, String email, String newRole) async {
+    try {
+      // Mise à jour en local (dans l'objet Project)
+      project.members[email] = newRole; // Modifier le rôle localement
+
+      // Mise à jour dans Firebase Firestore
+      await FirebaseFirestore.instance
+          .collection('projects')  // Collection 'projects' pour le projet actuel
+          .doc(project.id)  // Identifiant du projet
+          .update({
+        'members.$email': newRole,  // Met à jour le rôle du membre avec l'email
+      });
+
+      // Affichage d'un message de confirmation
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Rôle mis à jour avec succès !")),
+      );
+
+      // Notifie les écouteurs que l'état a changé
+      notifyListeners();
+    } catch (e) {
+      print("Erreur lors de la mise à jour du rôle : $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur : Impossible de mettre à jour le rôle")),
+      );
+    }
+  }
+
+
 
 
 

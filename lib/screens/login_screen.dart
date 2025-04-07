@@ -10,7 +10,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  String? _errorMessage; // Stocke le message d'erreur
+  String? _errorMessage;
 
   Future<void> _login() async {
     try {
@@ -18,14 +18,11 @@ class _LoginScreenState extends State<LoginScreen> {
       final error = await authProvider.signInWithEmail(_emailController.text, _passwordController.text);
 
       if (error == null) {
-        // Connexion réussie, redirection vers l'écran principal
         Navigator.pushReplacementNamed(context, '/home');
       } else {
-        // Afficher l'erreur de connexion
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
       }
     } catch (e) {
-      // Gérer les erreurs de manière plus détaillée
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur lors de la connexion : ${e.toString()}')));
     }
   }

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/project.dart';
 import '../provider/project_provider.dart';
 
+import 'package:firebase_auth/firebase_auth.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -37,12 +38,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           return Scaffold(
             appBar: _buildAppBar(),
             body: Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (snapshot.hasError) {
-          return Scaffold(
-            appBar: _buildAppBar(),
-            body: Center(child: Text("Erreur lors du chargement des projets")),
           );
         }
         final projects = snapshot.data ?? [];
@@ -140,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
           _buildDrawerItem(Icons.home, 'Accueil', onTap: () {}),
           _buildDrawerItem(Icons.settings, 'Paramètres', onTap: () {}),
-          _buildDrawerItem(Icons.logout, 'Déconnexion', onTap: () {}),
+          _buildDrawerItem(Icons.logout, 'Déconnexion', onTap: _logout),
         ],
       ),
     );
@@ -326,4 +321,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
+  void _logout() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+    } catch (e) {
+      print("Erreur de déconnexion : $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur lors de la déconnexion.")),
+      );
+    }
+  }
 }

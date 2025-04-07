@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:gestion_des_projets/provider/project_provider.dart';
 import '../models/project.dart';
+import 'package:provider/provider.dart';
+
+import '../models/taches_Models.dart';
+import '../provider/taches_provider.dart';
 
 class ProfilProjectPage extends StatefulWidget {
   @override
@@ -58,7 +62,7 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
         controller: _tabController,
         children: [
           _buildApercuTab(project),  // Passer `project` comme argument
-          _buildTasksTab(),
+          _buildTasksTab(project.id),
           _buildMembersTab(),
           _buildFilesTab(),
         ],
@@ -213,22 +217,265 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
         return 0;
     }
   }
+  Widget _buildTasksTab(String projectId) {
+    return Consumer<TacheProvider>(
+      builder: (context, tacheProvider, _) {
+        return Scaffold(
+          body: Column(
+            children: [
+              // Liste des tâches existantes
+              Expanded(
+                child: StreamBuilder<List<Tache>>(
+                  stream: tacheProvider.fetchTasksByProject(projectId),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Erreur : ${snapshot.error}'));
+                    }
+                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return Center(child: Text('Aucune tâche à afficher.'));
+                    }
 
-  Widget _buildTasksTab() {
-    return Center(
-      child: Text("Liste des tâches du projet", style: TextStyle(fontSize: 18)),
+                    List<Tache> taches = snapshot.data!;
+                    return ListView.builder(
+                      itemCount: taches.length,
+                      itemBuilder: (context, index) {
+                        Tache tache = taches[index];
+                        return Card(
+                          margin: EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: ExpansionTile(
+                            title: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start, // Tout aligné à gauche
+                              children: [
+                                // Titre de la tâche
+                                Text(
+                                  tache.titre,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    // Priorité
+                                    Container(
+                                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: _getPriorityColor(tache.priorite.toString().split('.').last),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        tache.priorite.toString().split('.').last,
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(width: 8),
+                                    // Statut
+                                    Container(
+                                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        tache.statut,
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(width: 8),
+                                    // Date limite
+                                    Row(
+                                      children: [
+                                        Icon(Icons.calendar_today, size: 14, color: Colors.grey),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          _formatDate(tache.dateLimite),
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[700],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            trailing: Icon(Icons.expand_more, color: Colors.black), // Icône pour dérouler
+                            children: [
+                              // Contenu déroulant : description de la tâche
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                                child: Text(
+                                  tache.description,
+                                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  }
+                ),
+              ),
+            ],
+          ),
+
+          floatingActionButton: FloatingActionButton(
+            onPressed: () {
+              _showAddTaskDialog(context, tacheProvider, projectId);
+            },
+            child: Icon(Icons.add),
+            backgroundColor: Colors.blue,
+          ),
+        );
+      },
     );
   }
-  // Instance de ProjectProvider
+
+// Dialogue pour ajouter une nouvelle tâche
+  void _showAddTaskDialog(BuildContext context, TacheProvider tacheProvider, String projectId) {
+    final TextEditingController _titleController = TextEditingController();
+    final TextEditingController _descriptionController = TextEditingController();
+    final TextEditingController _assignedToController = TextEditingController();
+    DateTime _dueDate = DateTime.now();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text("Ajouter une tâche"),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: _titleController,
+                  decoration: InputDecoration(labelText: 'Titre'),
+                ),
+                TextField(
+                  controller: _descriptionController,
+                  decoration: InputDecoration(labelText: 'Description'),
+                ),
+                TextField(
+                  controller: _assignedToController,
+                  decoration: InputDecoration(labelText: 'Assignée à'),
+                ),
+                ListTile(
+                  title: Text('Date limite : ${_dueDate.toLocal().toString().split(' ')[0]}'),
+                  onTap: () async {
+                    DateTime? pickedDate = await showDatePicker(
+                      context: context,
+                      initialDate: _dueDate,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2101),
+                    );
+                    if (pickedDate != null) {
+                      _dueDate = pickedDate;
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text("Annuler"),
+            ),
+            TextButton(
+              onPressed: () {
+                if (_titleController.text.isNotEmpty &&
+                    _descriptionController.text.isNotEmpty &&
+                    _assignedToController.text.isNotEmpty) {
+                  tacheProvider.addTask(
+                    titre: _titleController.text,
+                    description: _descriptionController.text,
+                    assignedTo: _assignedToController.text,
+                    dueDate: _dueDate,
+                    projetId: projectId,
+                    statut: 'En attente', // Statut par défaut
+                  );
+                  Navigator.of(context).pop();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Veuillez remplir tous les champs')),
+                  );
+                }
+              },
+              child: Text("Ajouter"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+// Méthode pour obtenir la couleur selon la priorité
+  Color _getPriorityColor(String priority) {
+    switch (priority) {
+      case 'Haute':
+        return Colors.yellow.shade700; // Jaune pour "Haute"
+      case 'Moyenne':
+        return Colors.orange;
+      case 'Basse':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
+  }
+
+
+// Méthode pour formater la date
+  String _formatDate(DateTime date) {
+    return "${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}";
+  }
+// Méthode pour obtenir la couleur selon la priorité
+  Color _getTaskPriorityColor(String priority) {
+    switch (priority.toLowerCase()) {
+      case 'urgente':
+        return Colors.red;
+      case 'haute':
+        return Colors.orange;
+      case 'moyenne':
+        return Colors.yellow;
+      case 'basse':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
+  }
+
+
+
+
+
+// Instance de ProjectProvider
   final ProjectProvider _projectProvider = ProjectProvider();
+
   Widget _buildMembersTab() {
     final Project project = ModalRoute.of(context)!.settings.arguments as Project;
 
-    // Trier les membres pour que le créateur (chef de projet) apparaisse en premier
     List<MapEntry<String, String>> sortedMembers = project.members.entries.toList();
     sortedMembers.sort((a, b) {
-      if (a.value == "chef de projet") return -1;  // Le créateur doit être en premier
-      if (b.value == "chef de projet") return 1;   // Le créateur doit être en premier
+      if (a.value == "chef de projet") return -1;
+      if (b.value == "chef de projet") return 1;
       return 0;
     });
 
@@ -240,69 +487,42 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
           String email = sortedMembers[index].key;
           String role = sortedMembers[index].value;
 
-          // Remplacer "chef de projet" par "créateur"
           if (role == "chef de projet") {
             role = "créateur";
           }
 
           return FutureBuilder<Map<String, String>>(
-            future: _projectProvider.getUserByEmail(email),  // Appel via l'instance de ProjectProvider
+            future: _projectProvider.getUserByEmail(email),
             builder: (context, snapshot) {
-              print("Email en cours de récupération : $email");  // Log de l'email
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return Center(child: CircularProgressIndicator());
               }
 
-              if (snapshot.hasError) {
-                return Text("Erreur lors de la récupération des données");
-              }
+
 
               if (snapshot.hasData) {
-                String name = snapshot.data!['name']!;  // Récupérer le nom complet
+                String name = snapshot.data!['name']!;
 
-                print("Nom récupéré : $name");  // Log du nom récupéré
-
-                return Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  margin: EdgeInsets.symmetric(vertical: 4),
-                  child: ListTile(
-                    contentPadding: EdgeInsets.all(8),
-                    leading: Icon(Icons.person, color: Colors.blueAccent),
-                    title: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "$name",  // Afficher le prénom et nom
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          email,  // Afficher l'email sous le nom
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                      ],
+                return GestureDetector(
+                  onTap: () {
+                    _showRoleSelectionDialog(context, project, email);
+                  },
+                  child: Card(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    margin: EdgeInsets.symmetric(vertical: 4),
+                    child: ListTile(
+                      contentPadding: EdgeInsets.all(8),
+                      leading: Icon(Icons.person, color: Colors.blueAccent),
+                      title: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(name, style: TextStyle(fontWeight: FontWeight.bold)),
+                          SizedBox(height: 4),
+                          Text(email, style: TextStyle(color: Colors.grey[600])),
+                        ],
+                      ),
+                      trailing: _buildRoleBadge(role),
                     ),
-                    trailing: role != "Membre"
-                        ? Container(
-                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: role == "créateur" ? Colors.orange : Colors.blueAccent,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: role == "créateur" ? Colors.black : Colors.transparent,
-                          width: 2,
-                        ),
-                      ),
-                      child: Text(
-                        role,  // Afficher le rôle
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    )
-                        : null, // Si le rôle est "Membre", ne rien afficher
                   ),
                 );
               }
@@ -314,14 +534,74 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
       ),
     );
   }
+  void _showRoleSelectionDialog(BuildContext context, Project project, String email) {
+    List<String> roles = ["Membre", "Admin", "chef de projet"];
 
-
-
-  Widget _buildFilesTab() {
-    return Center(
-      child: Text("Liste des fichiers", style: TextStyle(fontSize: 18)),
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: roles.map((role) {
+              return ListTile(
+                title: Text(role),
+                onTap: () {
+                  // Utiliser ProjectProvider pour mettre à jour le rôle
+                  final projectProvider = Provider.of<ProjectProvider>(context, listen: false);
+                  projectProvider.updateMemberRole(context, project, email, role);
+                  Navigator.pop(context); // Fermer le BottomSheet
+                },
+              );
+            }).toList(),
+          ),
+        );
+      },
     );
   }
 
 
+
+
+  Widget _buildRoleBadge(String role) {
+    // Si le rôle est "Membre", ne rien afficher
+    if (role == "Membre") {
+      return SizedBox.shrink(); // Retourne un widget vide
+    }
+
+    // Sinon, on affiche un badge avec le rôle
+    Color badgeColor = Colors.blueAccent;
+
+    if (role == "créateur") {
+      badgeColor = Colors.orange;
+    } else if (role == "Admin") {
+      badgeColor = Colors.blue;
+    }
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: badgeColor.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: badgeColor, width: 2),
+      ),
+      child: Text(
+        role,
+        style: TextStyle(color: badgeColor, fontWeight: FontWeight.bold, fontSize: 14),
+      ),
+    );
+  }
 }
+
+
+
+
+Widget _buildFilesTab() {
+  return Center(
+    child: Text("Liste des fichiers", style: TextStyle(fontSize: 18)),
+  );
+}
+
+
+
