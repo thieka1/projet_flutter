@@ -18,6 +18,7 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
   late TabController _tabController;
   double progress = 0.0;
   String projectStatus = "En attente";
+  String _priorite = 'Moyenne';
 
   @override
   void initState() {
@@ -72,6 +73,7 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
       ),
     );
   }
+
 
   Widget _buildApercuTab(Project project) {
     double progress = _getProgressForStatus(project.status); // Définir le progrès basé sur le statut
@@ -580,75 +582,133 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
     final TextEditingController _descriptionController = TextEditingController();
     final TextEditingController _assignedToController = TextEditingController();
     DateTime _dueDate = DateTime.now();
+    String _priorite = 'Moyenne'; // Valeur par défaut
 
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: Text("Ajouter une tâche"),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: _titleController,
-                  decoration: InputDecoration(labelText: 'Titre'),
+        return StatefulBuilder(
+          builder: (context, setState) {
+            Widget _buildPriorityRadio(String priority, Color color) {
+              return Row(
+                children: [
+                  Radio<String>(
+                    value: priority,
+                    groupValue: _priorite,
+                    onChanged: (value) {
+                      setState(() {
+                        _priorite = value!;
+                        print("Priorité sélectionnée: $_priorite");
+                      });
+                    },
+                    activeColor: color,
+                  ),
+                  Text(priority),
+                ],
+              );
+            }
+
+            return AlertDialog(
+              title: Text("Ajouter une tâche"),
+              content: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: _titleController,
+                      decoration: InputDecoration(labelText: 'Titre'),
+                    ),
+                    TextField(
+                      controller: _descriptionController,
+                      decoration: InputDecoration(labelText: 'Description'),
+                    ),
+                    TextField(
+                      controller: _assignedToController,
+                      decoration: InputDecoration(labelText: 'Assignée à'),
+                    ),
+                    ListTile(
+                      title: Text('Date limite : ${_dueDate.toLocal().toString().split(' ')[0]}'),
+                      onTap: () async {
+                        DateTime? pickedDate = await showDatePicker(
+                          context: context,
+                          initialDate: _dueDate,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2101),
+                        );
+                        if (pickedDate != null) {
+                          setState(() {
+                            _dueDate = pickedDate;
+                          });
+                        }
+                      },
+                    ),
+                    SizedBox(height: 20),
+                    Text(
+                      "Priorité",
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    _buildPriorityRadio("Basse", Colors.green),
+                    _buildPriorityRadio("Moyenne", Colors.orange),
+                    _buildPriorityRadio("Haute", Colors.red),
+                    _buildPriorityRadio("Urgente", Colors.purple),
+                  ],
                 ),
-                TextField(
-                  controller: _descriptionController,
-                  decoration: InputDecoration(labelText: 'Description'),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text("Annuler"),
                 ),
-                TextField(
-                  controller: _assignedToController,
-                  decoration: InputDecoration(labelText: 'Assignée à'),
-                ),
-                ListTile(
-                  title: Text('Date limite : ${_dueDate.toLocal().toString().split(' ')[0]}'),
-                  onTap: () async {
-                    DateTime? pickedDate = await showDatePicker(
-                      context: context,
-                      initialDate: _dueDate,
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime(2101),
-                    );
-                    if (pickedDate != null) {
-                      _dueDate = pickedDate;
+                TextButton(
+                  onPressed: () {
+                    if (_titleController.text.isNotEmpty &&
+                        _descriptionController.text.isNotEmpty &&
+                        _assignedToController.text.isNotEmpty) {
+                      tacheProvider.addTask(
+                        titre: _titleController.text,
+                        description: _descriptionController.text,
+                        assignedTo: _assignedToController.text,
+                        dueDate: _dueDate,
+                        projetId: projectId,
+                        priorite: _priorite,
+                        statut: 'En attente',
+                      );
+                      Navigator.of(context).pop();
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Veuillez remplir tous les champs')),
+                      );
                     }
                   },
+                  child: Text("Ajouter"),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text("Annuler"),
-            ),
-            TextButton(
-              onPressed: () {
-                if (_titleController.text.isNotEmpty &&
-                    _descriptionController.text.isNotEmpty &&
-                    _assignedToController.text.isNotEmpty) {
-                  tacheProvider.addTask(
-                    titre: _titleController.text,
-                    description: _descriptionController.text,
-                    assignedTo: _assignedToController.text,
-                    dueDate: _dueDate,
-                    projetId: projectId,
-                    statut: 'En attente', // Statut par défaut
-                  );
-                  Navigator.of(context).pop();
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Veuillez remplir tous les champs')),
-                  );
-                }
-              },
-              child: Text("Ajouter"),
-            ),
-          ],
+            );
+          },
         );
       },
+    );
+  }
+
+
+
+  // Dans votre fonction _buildPriorityRadio:
+  Widget _buildPriorityRadio(String priority, Color color) {
+    return Row(
+      children: [
+        Radio<String>(
+          value: priority,
+          groupValue: _priorite,
+          onChanged: (value) {
+            setState(() {
+              _priorite = value!;
+              print("Priorité sélectionnée: $_priorite"); // Pour déboguer
+            });
+          },
+          activeColor: color,
+        ),
+        Text(priority),
+      ],
     );
   }
 

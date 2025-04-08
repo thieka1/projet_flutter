@@ -6,6 +6,7 @@ class TacheProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Ajouter une tâche
+  // Version mise à jour de votre fonction addTask
   Future<void> addTask({
     required String titre,
     required String description,
@@ -13,6 +14,7 @@ class TacheProvider with ChangeNotifier {
     required DateTime dueDate,
     required String projetId,
     required String statut,
+    required String priorite, // Nouveau paramètre
   }) async {
     try {
       await _firestore.collection('taches').add({
@@ -25,6 +27,7 @@ class TacheProvider with ChangeNotifier {
         'projetId': projetId,
         'avancement': 0.0,
         'rappelEnvoye': false,
+        'priorite': priorite, // Stockez la priorité
       });
 
       notifyListeners();

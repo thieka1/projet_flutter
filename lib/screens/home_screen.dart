@@ -219,7 +219,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 LinearProgressIndicator(
                   backgroundColor: Colors.grey[350],
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.blueAccent),
-                  value: 0.0,
+                  value: _getProgressValue(project.status),
                 ),
                 SizedBox(height: 6),
                 // Ligne : % et date
@@ -227,7 +227,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      "0% En attente",
+                      "${_getProgressText(project.status)}",
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[600],
@@ -269,6 +269,35 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         );
       },
     );
+  }
+  double _getProgressValue(String status) {
+    switch (status) {
+      case 'En attente':
+        return 0.0;
+      case 'En cours':
+        return 0.5; // 50% de progression
+      case 'Terminés':
+        return 1.0; // 100% de progression
+      case 'Annulés':
+        return 0.0;
+      default:
+        return 0.0;
+    }
+  }
+
+  String _getProgressText(String status) {
+    switch (status) {
+      case 'En attente':
+        return "0% En attente";
+      case 'En cours':
+        return "50% En cours";
+      case 'Terminés':
+        return "100% Terminés";
+      case 'Annulés':
+        return "0% Annulés";
+      default:
+        return "0% Inconnu";
+    }
   }
 
   Color _getPriorityColor(String priority) {
