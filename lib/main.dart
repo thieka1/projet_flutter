@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:gestion_des_projets/provider/FichierProvider.dart';
 import 'package:gestion_des_projets/provider/auth_provider.dart'; // Import du AuthProvider
 import 'package:gestion_des_projets/provider/profil_provider.dart';
 import 'package:gestion_des_projets/provider/project_provider.dart'; // Import du ProjectProvider
@@ -36,6 +37,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ProjectProvider()),
         ChangeNotifierProvider(create: (_) => UserProfileProvider()),
         ChangeNotifierProvider(create: (_) => TacheProvider()),
+        ChangeNotifierProvider(create: (_) => FichierProvider()),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,

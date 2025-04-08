@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:gestion_des_projets/provider/project_provider.dart';
+import '../models/fichier_model.dart';
 import '../models/project.dart';
 import 'package:provider/provider.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/taches_Models.dart';
+import '../provider/FichierProvider.dart';
 import '../provider/taches_provider.dart';
 
 class ProfilProjectPage extends StatefulWidget {
@@ -34,6 +36,7 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
     // Récupérer l'objet `Project` passé dans les arguments
     final Project project = ModalRoute.of(context)!.settings.arguments as Project;
     final String projectTitle = project.title;  // Extraire le titre du projet depuis l'objet `Project`
+    final fichierProvider = Provider.of<FichierProvider>(context, listen: false);
 
     return Scaffold(
       appBar: AppBar(
@@ -64,7 +67,7 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
           _buildApercuTab(project),  // Passer `project` comme argument
           _buildTasksTab(project.id),
           _buildMembersTab(),
-          _buildFilesTab(),
+          _buildFilesTab(context, fichierProvider, project.id),
         ],
       ),
     );
@@ -148,16 +151,16 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
               child: Column(
                 children: [
                   Text("Avancement du projet", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  SizedBox(height: 16),
+                  SizedBox(height: 12),
                   Stack(
                     alignment: Alignment.center,
                     children: [
                       SizedBox(
-                        width: 100,
-                        height: 100,
+                        width: 150,
+                        height: 150,
                         child: CircularProgressIndicator(
                           value: progress / 100, // Convertir en pourcentage
-                          strokeWidth: 6,
+                          strokeWidth: 10,
                           backgroundColor: Colors.grey[300],
                           valueColor: AlwaysStoppedAnimation(Colors.blueAccent),
                         ),
@@ -243,100 +246,14 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
                       itemCount: taches.length,
                       itemBuilder: (context, index) {
                         Tache tache = taches[index];
-                        return Card(
-                          margin: EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: ExpansionTile(
-                            title: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start, // Tout aligné à gauche
-                              children: [
-                                // Titre de la tâche
-                                Text(
-                                  tache.titre,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                SizedBox(height: 6),
-                                Row(
-                                  children: [
-                                    // Priorité
-                                    Container(
-                                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                      decoration: BoxDecoration(
-                                        color: _getPriorityColor(tache.priorite.toString().split('.').last),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        tache.priorite.toString().split('.').last,
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(width: 8),
-                                    // Statut
-                                    Container(
-                                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                      decoration: BoxDecoration(
-                                        color: Colors.blue,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        tache.statut,
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(width: 8),
-                                    // Date limite
-                                    Row(
-                                      children: [
-                                        Icon(Icons.calendar_today, size: 14, color: Colors.grey),
-                                        SizedBox(width: 4),
-                                        Text(
-                                          _formatDate(tache.dateLimite),
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[700],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            trailing: Icon(Icons.expand_more, color: Colors.black), // Icône pour dérouler
-                            children: [
-                              // Contenu déroulant : description de la tâche
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                                child: Text(
-                                  tache.description,
-                                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
+                        return _buildTaskCard(tache, tacheProvider, projectId);
                       },
                     );
-                  }
+                  },
                 ),
               ),
             ],
           ),
-
           floatingActionButton: FloatingActionButton(
             onPressed: () {
               _showAddTaskDialog(context, tacheProvider, projectId);
@@ -348,6 +265,239 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
       },
     );
   }
+
+// Carte d'affichage de tâche
+  Widget _buildTaskCard(Tache tache, TacheProvider tacheProvider, String projectId) {
+    return Card(
+      margin: EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: ExpansionTile(
+        title: _buildTaskHeader(tache),
+        trailing: Icon(Icons.expand_more, color: Colors.black),
+        children: [
+          _buildTaskDetails(tache),
+          _buildTaskDiscussion(tache, tacheProvider, projectId),
+        ],
+      ),
+    );
+  }
+
+// En-tête de la tâche
+  Widget _buildTaskHeader(Tache tache) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          tache.titre,
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        SizedBox(height: 6),
+        Row(
+          children: [
+            _buildPriorityChip(tache),
+            SizedBox(width: 8),
+            _buildStatusChip(tache),
+            SizedBox(width: 8),
+            _buildDueDate(tache),
+          ],
+        ),
+      ],
+    );
+  }
+
+// Chip de priorité
+  Widget _buildPriorityChip(Tache tache) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: _getPriorityColor(tache.priorite.toString().split('.').last),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        tache.priorite.toString().split('.').last,
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+      ),
+    );
+  }
+
+// Chip de statut
+  Widget _buildStatusChip(Tache tache) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.blue,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        tache.statut,
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+      ),
+    );
+  }
+
+// Date limite de la tâche
+  Widget _buildDueDate(Tache tache) {
+    return Row(
+      children: [
+        Icon(Icons.calendar_today, size: 14, color: Colors.grey),
+        SizedBox(width: 4),
+        Text(
+          _formatDate(tache.dateLimite),
+          style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+        ),
+      ],
+    );
+  }
+
+// Détails de la tâche (Progression et description)
+  Widget _buildTaskDetails(Tache tache) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Progression : ${tache.avancement.toStringAsFixed(0)}%',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+          ),
+          SizedBox(height: 4),
+          LinearProgressIndicator(
+            value: tache.avancement / 100,
+            minHeight: 8,
+            backgroundColor: Colors.grey[300],
+            valueColor: AlwaysStoppedAnimation<Color>(
+              tache.avancement < 100 ? Colors.blue : Colors.green,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            tache.description,
+            style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+          ),
+          SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.person, size: 16, color: Colors.grey[700]),
+              SizedBox(width: 6),
+              Text(
+                'Assignée à : ${tache.assigneA}',
+                style: TextStyle(fontSize: 14, color: Colors.grey[800], fontStyle: FontStyle.italic),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+// Section de discussion pour chaque tâche
+  Widget _buildTaskDiscussion(Tache tache, TacheProvider tacheProvider, String projectId) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Discussion',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.grey[800]),
+          ),
+          SizedBox(height: 8),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
+            itemCount: tache.messages.length,
+            itemBuilder: (context, index) {
+              final message = tache.messages[index];
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.person, size: 16, color: Colors.grey),
+                        SizedBox(width: 8),
+                        Text(
+                          message.auteur,
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        Spacer(),
+                      ],
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      message.contenu,
+                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          SizedBox(height: 12),
+          _buildCommentField(tacheProvider, projectId, tache),
+        ],
+      ),
+    );
+  }
+
+// Champ pour ajouter un commentaire
+  Widget _buildCommentField(TacheProvider tacheProvider, String projectId, Tache tache) {
+    TextEditingController commentController = TextEditingController();
+
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: commentController,
+            decoration: InputDecoration(
+              hintText: "Ajouter un commentaire...",
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
+            ),
+            onSubmitted: (value) async {
+              if (value.isNotEmpty) {
+                String auteur = await tacheProvider.getAuteurForProject(projectId);
+                print("Auteur récupéré : $auteur"); // Ajoutez un log ici pour vérifier
+                tacheProvider.addCommentToTask(
+                  projectId: projectId,
+                  taskId: tache.id,
+                  contenu: value,
+                  auteur: auteur,
+                );
+                commentController.clear();
+              }
+            },
+          ),
+        ),
+        SizedBox(width: 8),
+        IconButton(
+          icon: Icon(Icons.send, color: Colors.blue),
+          onPressed: () async {
+            String comment = commentController.text;
+            if (comment.isNotEmpty) {
+              String auteur = await tacheProvider.getAuteurForProject(projectId);
+              print("Auteur récupéré : $auteur"); // Ajoutez un log ici pour vérifier
+              tacheProvider.addCommentToTask(
+                projectId: projectId,
+                taskId: tache.id,
+                contenu: comment,
+                auteur: auteur,
+              );
+              commentController.clear();
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+
+
+
+
 
 // Dialogue pour ajouter une nouvelle tâche
   void _showAddTaskDialog(BuildContext context, TacheProvider tacheProvider, String projectId) {
@@ -597,11 +747,81 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
 
 
 
-Widget _buildFilesTab() {
-  return Center(
-    child: Text("Liste des fichiers", style: TextStyle(fontSize: 18)),
+Widget _buildFilesTab(BuildContext context, FichierProvider fichierProvider, String projetId) {
+  return Column(
+    children: [
+      Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            foregroundColor: Colors.white, backgroundColor: Colors.blueAccent, // Couleur du texte en blanc
+            side: BorderSide(color: Colors.blue, width: 1), // Bordure légère bleue
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8), // Bordure légèrement arrondie
+            ),
+          ),
+          onPressed: () => fichierProvider.uploadFile(projetId),
+          icon: Icon(Icons.add, color: Colors.white), // Icône en blanc
+          label: Text(
+            "Ajouter un fichier",
+            style: TextStyle(color: Colors.white), // Texte en blanc
+          ),
+        ),
+      ),
+
+      Expanded(
+        child: StreamBuilder<List<FichierModel>>(
+          stream: fichierProvider.getFilesForProject(projetId),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(child: CircularProgressIndicator());
+            }
+
+            if (!snapshot.hasData) {
+              return Center(child: Text("Aucun fichier trouvé."));
+            }
+
+            final files = snapshot.data!;
+            if (files.isEmpty) return Center(child: Text("Aucun fichier trouvé."));
+
+            return ListView.builder(
+              itemCount: files.length,
+              itemBuilder: (context, index) {
+                final file = files[index];
+                return ListTile(
+                  leading: Icon(Icons.insert_drive_file, size: 32, color: Colors.blue),
+                  title: Text(file.nom),
+                  subtitle: Text("Taille: ${file.taille.toStringAsFixed(2)} Mo"),
+                );
+              },
+            );
+          },
+        ),
+      )
+    ],
   );
 }
+
+
+
+
+// Classe pour représenter un fichier
+class FileItem {
+  final IconData icon;
+  final String name;
+  final String size;
+  final String addedBy;
+  final String dateAdded;
+
+  FileItem({
+    required this.icon,
+    required this.name,
+    required this.size,
+    required this.addedBy,
+    required this.dateAdded,
+  });
+}
+
 
 
 

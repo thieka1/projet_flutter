@@ -170,69 +170,98 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Titre et priorité
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      project.title,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blueAccent,
+                    Expanded(
+                      child: Text(
+                        project.title,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    SizedBox(width: 8),
                     Container(
-                      padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                      padding: EdgeInsets.symmetric(vertical: 2, horizontal: 6),
                       decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          color: Colors.blueAccent),
+                        borderRadius: BorderRadius.circular(10),
+                        color: _getPriorityColor(project.priority),
+                      ),
                       child: Text(
                         project.priority,
                         style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12),
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
                   ],
                 ),
-                SizedBox(height: 8),
+                SizedBox(height: 6),
+                // Description du projet
                 Text(
                   project.description,
-                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[700],
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                SizedBox(height: 8),
+                SizedBox(height: 10),
+                // Barre de progression
+                LinearProgressIndicator(
+                  backgroundColor: Colors.grey[350],
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.blueAccent),
+                  value: 0.0,
+                ),
+                SizedBox(height: 6),
+                // Ligne : % et date
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      "Date limite : ${project.endDate.day}/${project.endDate.month}/${project.endDate.year}",
-                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      "0% terminé",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
                     ),
-                    Align(
-                      alignment: Alignment.bottomLeft,
-                      child: IconButton(
-                        icon: Icon(
-                          Icons.account_circle,
-                          size: 24,
-                          color: Colors.grey,
-                        ),
-                        onPressed: () {
-                          Navigator.pushNamed(
-                            context,
-                            '/projectprofil',
-                            arguments: project,  // Passez bien l'objet 'Project' et non une chaîne
-                          );
-
-                        }
+                    Text(
+                      "Échéance : ${project.endDate.day}/${project.endDate.month}/${project.endDate.year}",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
                       ),
                     ),
                   ],
                 ),
                 SizedBox(height: 8),
-                LinearProgressIndicator(
-                  backgroundColor: Colors.grey[300],
-                  color: Colors.blueAccent,
+                // Icône profil en bas à gauche
+                Align(
+                  alignment: Alignment.bottomLeft,
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: BoxConstraints(),
+                    icon: Icon(
+                      Icons.account_circle,
+                      size: 22,
+                      color: Colors.red,
+                    ),
+                    onPressed: () {
+                      Navigator.pushNamed(
+                        context,
+                        '/projectprofil',
+                        arguments: project,
+                      );
+                    },
+                  ),
                 ),
               ],
             ),
@@ -240,6 +269,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         );
       },
     );
+  }
+
+  Color _getPriorityColor(String priority) {
+    switch (priority) {
+      case 'Basse':
+        return Colors.blue; // Couleur bleue pour "Basse"
+      case 'Urgente':
+        return Colors.red; // Couleur rouge pour "Urgente"
+      case 'Haute':
+        return Colors.yellow; // Couleur jaune pour "Haute"
+      default:
+        return Colors.grey; // Couleur par défaut pour toute autre valeur
+    }
   }
 
   Widget _buildEmptyState() {

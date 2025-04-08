@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/taches_Models.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 
 class TacheProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -69,4 +68,54 @@ class TacheProvider with ChangeNotifier {
         .map((snapshot) =>
         snapshot.docs.map((doc) => Tache.fromFirestore(doc)).toList());
   }
+  // Ajouter un commentaire à une tâche spécifique
+  Future<void> addCommentToTask({
+    required String projectId,  // Id du projet (optionnel ici si vous l'utilisez juste pour une logique de filtrage)
+    required String taskId,     // Id de la tâche à commenter
+    required String contenu,    // Contenu du commentaire
+    required String auteur,     // Auteur du commentaire (peut être l'utilisateur courant)
+  }) async {
+    try {
+      // Créer un nouveau message
+      Message newMessage = Message(
+        auteur: auteur,
+        contenu: contenu,
+        date: DateTime.now(),
+      );
+
+      // Ajouter le message dans la liste des messages de la tâche
+      await _firestore.collection('taches').doc(taskId).update({
+        'messages': FieldValue.arrayUnion([newMessage.toMap()]), // Ajoute le message à la liste
+      });
+
+      // Notifier les écouteurs pour mettre à jour l'interface utilisateur
+      notifyListeners();
+    } catch (e) {
+      print("Erreur lors de l'ajout du commentaire : $e");
+    }
+  }
+
+  Future<String> getAuteurForProject(String projectId) async {
+    try {
+      DocumentSnapshot projectSnapshot = await _firestore
+          .collection('projets')
+          .doc(projectId)
+          .get();
+
+      if (projectSnapshot.exists) {
+        String auteur = projectSnapshot['createur'] ?? 'mamy lay'; // Vérifiez que 'createur' est bien défini
+        print("Auteur du projet : $auteur"); // Ajoutez un log ici
+        return auteur;
+      } else {
+        print("Projet non trouvé");
+        return 'mamy laye';
+      }
+    } catch (e) {
+      print("Erreur lors de la récupération de l'auteur du projet: $e");
+      return 'Inconnu';
+    }
+  }
+
+
+
 }
