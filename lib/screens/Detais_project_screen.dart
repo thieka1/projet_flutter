@@ -74,11 +74,14 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
   }
 
   Widget _buildApercuTab(Project project) {
+    double progress = _getProgressForStatus(project.status); // Définir le progrès basé sur le statut
+
     return Padding(
       padding: EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Première carte : Détails du projet
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             child: Padding(
@@ -106,44 +109,41 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
                       ),
                     ],
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  SizedBox(height: 10),
+                  Text(
+                    "Priorité: ${project.priority}",
+                    style: TextStyle(color: Colors.orange[600]),
+                  ),
+                  SizedBox(height: 8),
+                  Text("Description", style: TextStyle(fontWeight: FontWeight.bold)),
+                  SizedBox(height: 4),
+                  Text(project.description, style: TextStyle(color: Colors.black54)),
+                  SizedBox(height: 8),
+                  Row(
                     children: [
-                      SizedBox(height: 10),
+                      Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                      SizedBox(width: 4),
                       Text(
-                        "Priorité: ${project.priority}",
-                        style: TextStyle(color: Colors.orange[600]),
+                        "Début: ${project.startDate.day}/${project.startDate.month}/${project.startDate.year}",
+                        style: TextStyle(color: Colors.black54),
                       ),
-                      SizedBox(height: 8), // Espacement entre la priorité et la description
-                      Text("Description", style: TextStyle(fontWeight: FontWeight.bold)),
-                      SizedBox(height: 4), // Espacement entre "Description" et la description
-                      Text(project.description, style: TextStyle(color: Colors.black54)),
-                      SizedBox(height: 8), // Espacement entre la description et les dates
-                      Row(
-                        children: [
-                          Icon(Icons.calendar_today, size: 16, color: Colors.grey),
-                          SizedBox(width: 4),
-                          Text(
-                            "Début: ${project.startDate.day}/${project.startDate.month}/${project.startDate.year}",
-                            style: TextStyle(color: Colors.black54),
-                          ),
-                          SizedBox(width: 16),
-                          Icon(Icons.calendar_today, size: 16, color: Colors.grey),
-                          SizedBox(width: 4),
-                          Text(
-                            "Fin: ${project.endDate.day}/${project.endDate.month}/${project.endDate.year}",
-                            style: TextStyle(color: Colors.black54),
-                          ),
-                        ],
+                      SizedBox(width: 16),
+                      Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                      SizedBox(width: 4),
+                      Text(
+                        "Fin: ${project.endDate.day}/${project.endDate.month}/${project.endDate.year}",
+                        style: TextStyle(color: Colors.black54),
                       ),
                     ],
-                  )
-
+                  ),
                 ],
               ),
             ),
           ),
+
           SizedBox(height: 16),
+
+          // Deuxième carte : Avancement + boutons statut
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             child: Padding(
@@ -159,7 +159,7 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
                         width: 150,
                         height: 150,
                         child: CircularProgressIndicator(
-                          value: progress / 100, // Convertir en pourcentage
+                          value: progress / 100,
                           strokeWidth: 10,
                           backgroundColor: Colors.grey[300],
                           valueColor: AlwaysStoppedAnimation(Colors.blueAccent),
@@ -174,12 +174,13 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      _statusButton("En attente", Colors.orange, fontSize: 12),
-                      _statusButton("En cours", Colors.blue, fontSize: 12),
-                      _statusButton("Terminé", Colors.green, fontSize: 12),
-                      _statusButton("Annulé", Colors.red, fontSize: 12),
+                      _statusButton(project, "En attente", Colors.orange),
+                      _statusButton(project, "En cours", Colors.blue),
+                      _statusButton(project, "Terminés", Colors.green),
+                      _statusButton(project, "Annulés", Colors.red),
                     ],
                   ),
+
                 ],
               ),
             ),
@@ -188,38 +189,67 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
       ),
     );
   }
+  Widget _statusButton(Project project, String status, Color color) {
+    return Builder(
+      builder: (context) {
+        final isActive = project.status == status;
 
-  Widget _statusButton(String status, Color color, {double fontSize = 14}) {
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color.withOpacity(0.2),
-        foregroundColor: color,
-        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-        textStyle: TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold),
-      ),
-      onPressed: () {
-        setState(() {
-          projectStatus = status;
-          progress = _getProgressForStatus(status);
-        });
+        return SizedBox(
+          width: 80, // ← Réduit la taille du bouton
+          child: ElevatedButton(
+            onPressed: isActive
+                ? null
+                : () {
+              Provider.of<ProjectProvider>(context, listen: false)
+                  .updateProjectStatus(project.id, status)
+                  .then((_) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Statut mis à jour en "$status"'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }).catchError((error) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Erreur: ${error.toString()}'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              });
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isActive ? color.withOpacity(0.5) : color,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8), // réduit la hauteur aussi
+            ),
+            child: Text(
+              status,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white, fontSize: 11),
+            ),
+          ),
+        );
       },
-      child: Text(status),
     );
   }
+
 
   double _getProgressForStatus(String status) {
     switch (status) {
       case "En cours":
         return 50;
-      case "Terminé":
+      case "Terminés":
         return 100;
-      case "Annulé":
+      case "Annulés":
         return 0;
       default:
         return 0;
     }
   }
+
   Widget _buildTasksTab(String projectId) {
     return Consumer<TacheProvider>(
       builder: (context, tacheProvider, _) {

@@ -276,6 +276,31 @@ class ProjectProvider with ChangeNotifier {
       );
     }
   }
+// Méthode spécifique pour mettre à jour le statut d'un projet
+  Future<void> updateProjectStatus(String projectId, String newStatus) async {
+    try {
+      // Mise à jour dans Firestore
+      await _firestore
+          .collection('projects')
+          .doc(projectId)
+          .update({'status': newStatus});
+
+      // Mise à jour locale si le projet est dans la liste _projects
+      int index = _projects.indexWhere((project) => project.id == projectId);
+      if (index != -1) {
+        _projects[index].status = newStatus;
+        notifyListeners(); // Notifier les widgets qui écoutent ce changement
+      }
+
+      // Si le projet n'est pas dans la liste locale, on peut le récupérer
+      else {
+        final updatedProject = await getProjectById(projectId);
+        notifyListeners();
+      }
+    } catch (e) {
+      throw Exception("Erreur lors de la mise à jour du statut: $e");
+    }
+  }
 
 }
 

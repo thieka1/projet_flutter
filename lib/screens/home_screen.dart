@@ -227,7 +227,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      "0% terminé",
+                      "0% En attente",
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[600],
