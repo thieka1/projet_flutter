@@ -57,8 +57,7 @@ class ProjectProvider with ChangeNotifier {
     final User? user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      // Si l'utilisateur n'est pas authentifié, retourner une liste vide
-      return Stream.value([]);
+      return Stream.value([]); // Si l'utilisateur n'est pas authentifié, retourne une liste vide
     }
 
     return _firestore
@@ -68,15 +67,15 @@ class ProjectProvider with ChangeNotifier {
         .map((snapshot) {
       return snapshot.docs
           .map((doc) {
-        // Convertir chaque document en objet Project
         return Project.fromMap(doc.id, doc.data() as Map<String, dynamic>);
       })
           .where((project) {
-        // Vérifier si l'email de l'utilisateur fait partie des membres
-        return project.members.containsKey(user.email);
-      }).toList();
+        return project.members.containsKey(user.email); // Vérifie si l'email de l'utilisateur fait partie des membres
+      })
+          .toList();
     });
   }
+
 
 
   void updateProject(Project updatedProject) {
@@ -237,39 +236,59 @@ class ProjectProvider with ChangeNotifier {
   }
 
 
-
-  // Méthode pour mettre à jour le rôle d'un membre dans le projet
-  void updateMemberRole(BuildContext context, Project project, String email, String newRole) async {
+  Future<void> updateMemberRole(BuildContext context, Project project, String memberEmail, String newRole) async {
     try {
-      // Mise à jour en local (dans l'objet Project)
-      project.members[email] = newRole; // Modifier le rôle localement
+      // Référence au document du projet dans Firestore
+      final DocumentReference projectRef = FirebaseFirestore.instance.collection('projects').doc(project.id);
 
-      // Mise à jour dans Firebase Firestore
-      await FirebaseFirestore.instance
-          .collection('projects')  // Collection 'projects' pour le projet actuel
-          .doc(project.id)  // Identifiant du projet
-          .update({
-        'members.$email': newRole,  // Met à jour le rôle du membre avec l'email
+      // Créer une copie de la map des membres du projet
+      Map<String, String> updatedMembers = Map<String, String>.from(project.members);
+
+      // Mettre à jour le rôle du membre
+      updatedMembers[memberEmail] = newRole;
+
+      // Mettre à jour le document dans Firestore
+      await projectRef.update({
+        'members': updatedMembers,
       });
 
-      // Affichage d'un message de confirmation
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Rôle mis à jour avec succès !")),
-      );
+      // Mettre à jour l'objet projet local
+      project.members = updatedMembers;
 
-      // Notifie les écouteurs que l'état a changé
+      // Notifier les listeners pour rafraîchir l'UI
       notifyListeners();
-    } catch (e) {
-      print("Erreur lors de la mise à jour du rôle : $e");
+
+      // Afficher un message de succès
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur : Impossible de mettre à jour le rôle")),
+        SnackBar(
+          content: Text('Le rôle de $memberEmail a été modifié avec succès'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      // Gérer les erreurs
+      print('Erreur lors de la mise à jour du rôle: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur lors de la modification du rôle: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
 
-
-
-
-
-
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

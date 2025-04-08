@@ -354,42 +354,92 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
 
 // Détails de la tâche (Progression et description)
   Widget _buildTaskDetails(Tache tache) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Progression : ${tache.avancement.toStringAsFixed(0)}%',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[800]),
-          ),
-          SizedBox(height: 4),
-          LinearProgressIndicator(
-            value: tache.avancement / 100,
-            minHeight: 8,
-            backgroundColor: Colors.grey[300],
-            valueColor: AlwaysStoppedAnimation<Color>(
-              tache.avancement < 100 ? Colors.blue : Colors.green,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            tache.description,
-            style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-          ),
-          SizedBox(height: 8),
-          Row(
+    // Récupérer le provider pour pouvoir mettre à jour la tâche
+    final tacheProvider = Provider.of<TacheProvider>(context, listen: false);
+    // Valeur locale pour le slider
+    double progressValue = tache.avancement;
+
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.person, size: 16, color: Colors.grey[700]),
-              SizedBox(width: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Progression : ${progressValue.toStringAsFixed(0)}%',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+                  ),
+                  // Bouton pour sauvegarder si la valeur a changé
+                  if (progressValue != tache.avancement)
+                    TextButton.icon(
+                      icon: Icon(Icons.save, size: 16),
+                      label: Text('Enregistrer'),
+                      onPressed: () {
+                        // Mettre à jour l'avancement dans Firestore
+                        tacheProvider.updateTask(Tache(
+                          id: tache.id,
+                          titre: tache.titre,
+                          description: tache.description,
+                          priorite: tache.priorite,
+                          assigneA: tache.assigneA,
+                          dateLimite: tache.dateLimite,
+                          avancement: progressValue,
+                          rappelEnvoye: tache.rappelEnvoye,
+                          projetId: tache.projetId,
+                          statut: tache.statut,
+                          messages: tache.messages,
+                        ));
+                      },
+                    ),
+                ],
+              ),
+              SizedBox(height: 4),
+              // Slider pour ajuster la progression
+              Slider(
+                value: progressValue,
+                min: 0.0,
+                max: 100.0,
+                divisions: 10,
+                label: progressValue.toStringAsFixed(0) + '%',
+                onChanged: (double value) {
+                  setState(() {
+                    progressValue = value;
+                  });
+                },
+              ),
+              // Barre de progression
+              LinearProgressIndicator(
+                value: progressValue / 100,
+                minHeight: 8,
+                backgroundColor: Colors.grey[300],
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  progressValue < 100 ? Colors.blue : Colors.green,
+                ),
+              ),
+              SizedBox(height: 8),
               Text(
-                'Assignée à : ${tache.assigneA}',
-                style: TextStyle(fontSize: 14, color: Colors.grey[800], fontStyle: FontStyle.italic),
+                tache.description,
+                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.person, size: 16, color: Colors.grey[700]),
+                  SizedBox(width: 6),
+                  Text(
+                    'Assignée à : ${tache.assigneA}',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[800], fontStyle: FontStyle.italic),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -494,11 +544,6 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
     );
   }
 
-
-
-
-
-
 // Dialogue pour ajouter une nouvelle tâche
   void _showAddTaskDialog(BuildContext context, TacheProvider tacheProvider, String projectId) {
     final TextEditingController _titleController = TextEditingController();
@@ -577,6 +622,65 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
     );
   }
 
+  Widget _buildProgressSlider(Tache tache, TacheProvider provider) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Avancement:', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('${(tache.avancement * 100).toInt()}%'),
+            ],
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Barre de progression
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: tache.avancement,
+                  backgroundColor: Colors.grey[300],
+                  valueColor: AlwaysStoppedAnimation<Color>(_getProgressColor(tache.avancement)),
+                  minHeight: 20,
+                ),
+              ),
+              // Curseur pour modifier la progression
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  thumbShape: RoundSliderThumbShape(enabledThumbRadius: 8),
+                  overlayShape: RoundSliderOverlayShape(overlayRadius: 16),
+                  trackHeight: 20,
+                ),
+                child: Slider(
+                  value: tache.avancement,
+                  onChanged: (newValue) {
+                    provider.updateTaskProgress(tache.id, newValue);
+                  },
+                  activeColor: Colors.transparent,
+                  inactiveColor: Colors.transparent,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+// 3. Fonction pour déterminer la couleur en fonction de l'avancement
+  Color _getProgressColor(double progress) {
+    if (progress < 0.3) return Colors.red;
+    if (progress < 0.7) return Colors.orange;
+    return Colors.green;
+  }
+
 // Méthode pour obtenir la couleur selon la priorité
   Color _getPriorityColor(String priority) {
     switch (priority) {
@@ -620,70 +724,74 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
   final ProjectProvider _projectProvider = ProjectProvider();
 
   Widget _buildMembersTab() {
-    final Project project = ModalRoute.of(context)!.settings.arguments as Project;
+    // Utilisez Consumer pour écouter les changements dans ProjectProvider
+    return Consumer<ProjectProvider>(
+      builder: (context, projectProvider, child) {
+        final Project project = ModalRoute.of(context)!.settings.arguments as Project;
 
-    List<MapEntry<String, String>> sortedMembers = project.members.entries.toList();
-    sortedMembers.sort((a, b) {
-      if (a.value == "chef de projet") return -1;
-      if (b.value == "chef de projet") return 1;
-      return 0;
-    });
+        List<MapEntry<String, String>> sortedMembers = project.members.entries.toList();
+        sortedMembers.sort((a, b) {
+          if (a.value == "chef de projet") return -1;
+          if (b.value == "chef de projet") return 1;
+          return 0;
+        });
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: ListView.builder(
-        itemCount: sortedMembers.length,
-        itemBuilder: (context, index) {
-          String email = sortedMembers[index].key;
-          String role = sortedMembers[index].value;
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: ListView.builder(
+            itemCount: sortedMembers.length,
+            itemBuilder: (context, index) {
+              String email = sortedMembers[index].key;
+              String role = sortedMembers[index].value;
 
-          if (role == "chef de projet") {
-            role = "créateur";
-          }
-
-          return FutureBuilder<Map<String, String>>(
-            future: _projectProvider.getUserByEmail(email),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return Center(child: CircularProgressIndicator());
+              if (role == "chef de projet") {
+                role = "créateur";
               }
 
+              return FutureBuilder<Map<String, String>>(
+                future: projectProvider.getUserByEmail(email),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(child: CircularProgressIndicator());
+                  }
 
+                  if (snapshot.hasData) {
+                    String name = snapshot.data!['name']!;
 
-              if (snapshot.hasData) {
-                String name = snapshot.data!['name']!;
-
-                return GestureDetector(
-                  onTap: () {
-                    _showRoleSelectionDialog(context, project, email);
-                  },
-                  child: Card(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    margin: EdgeInsets.symmetric(vertical: 4),
-                    child: ListTile(
-                      contentPadding: EdgeInsets.all(8),
-                      leading: Icon(Icons.person, color: Colors.blueAccent),
-                      title: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(name, style: TextStyle(fontWeight: FontWeight.bold)),
-                          SizedBox(height: 4),
-                          Text(email, style: TextStyle(color: Colors.grey[600])),
-                        ],
+                    return GestureDetector(
+                      onTap: () {
+                        _showRoleSelectionDialog(context, project, email);
+                      },
+                      child: Card(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        margin: EdgeInsets.symmetric(vertical: 4),
+                        child: ListTile(
+                          contentPadding: EdgeInsets.all(8),
+                          leading: Icon(Icons.person, color: Colors.blueAccent),
+                          title: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(name, style: TextStyle(fontWeight: FontWeight.bold)),
+                              SizedBox(height: 4),
+                              Text(email, style: TextStyle(color: Colors.grey[600])),
+                            ],
+                          ),
+                          trailing: _buildRoleBadge(role),
+                        ),
                       ),
-                      trailing: _buildRoleBadge(role),
-                    ),
-                  ),
-                );
-              }
+                    );
+                  }
 
-              return Container();
+                  return Container();
+                },
+              );
             },
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
+
   void _showRoleSelectionDialog(BuildContext context, Project project, String email) {
     List<String> roles = ["Membre", "Admin", "chef de projet"];
 
@@ -697,11 +805,17 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
             children: roles.map((role) {
               return ListTile(
                 title: Text(role),
-                onTap: () {
+                onTap: () async {
                   // Utiliser ProjectProvider pour mettre à jour le rôle
                   final projectProvider = Provider.of<ProjectProvider>(context, listen: false);
-                  projectProvider.updateMemberRole(context, project, email, role);
-                  Navigator.pop(context); // Fermer le BottomSheet
+                  await projectProvider.updateMemberRole(context, project, email, role);
+
+                  // Force la mise à jour du widget après la mise à jour du rôle
+                  if (context.mounted) {
+                    // Notifiez explicitement les listeners pour s'assurer que l'UI se rafraîchit
+                    projectProvider.notifyListeners();
+                    Navigator.pop(context); // Fermer le BottomSheet
+                  }
                 },
               );
             }).toList(),
@@ -710,8 +824,6 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
       },
     );
   }
-
-
 
 
   Widget _buildRoleBadge(String role) {

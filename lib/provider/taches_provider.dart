@@ -115,7 +115,20 @@ class TacheProvider with ChangeNotifier {
       return 'Inconnu';
     }
   }
+  Future<void> updateTaskProgress(String taskId, double progress) async {
+    try {
+      // Assurez-vous que la valeur est entre 0 et 1
+      progress = progress.clamp(0.0, 1.0);
 
+      await _firestore.collection('taches').doc(taskId).update({
+        'avancement': progress,
+      });
+
+      notifyListeners();
+    } catch (e) {
+      print("Erreur lors de la mise à jour de l'avancement: $e");
+    }
+  }
 
 
 }
