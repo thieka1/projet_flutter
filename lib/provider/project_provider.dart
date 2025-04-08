@@ -241,40 +241,52 @@ class ProjectProvider with ChangeNotifier {
       // Référence au document du projet dans Firestore
       final DocumentReference projectRef = FirebaseFirestore.instance.collection('projects').doc(project.id);
 
-      // Créer une copie de la map des membres du projet
+      // Créer une copie des membres pour manipulation locale
       Map<String, String> updatedMembers = Map<String, String>.from(project.members);
 
-      // Mettre à jour le rôle du membre
-      updatedMembers[memberEmail] = newRole;
-
-      // Mettre à jour le document dans Firestore
-      await projectRef.update({
-        'members': updatedMembers,
+      // Parcourir les membres pour identifier et corriger les clés erronées
+      Map<String, String> correctedMembers = {};
+      updatedMembers.forEach((key, value) {
+        String correctedKey = key.contains(',') ? decodeEmail(key) : key; // Décoder les clés contenant des virgules
+        correctedMembers[correctedKey] = value; // Recréer avec des clés corrigées
       });
 
-      // Mettre à jour l'objet projet local
-      project.members = updatedMembers;
+      // Ajouter ou mettre à jour le rôle pour le membre
+      correctedMembers[memberEmail] = newRole;
 
-      // Notifier les listeners pour rafraîchir l'UI
+      // Mettre à jour Firestore avec les données corrigées
+      await projectRef.update({
+        'members': correctedMembers,
+      });
+
+      // Mettre à jour l'objet local du projet
+      project.members = correctedMembers;
+
+      // Notifier les widgets pour rafraîchir l'interface utilisateur
       notifyListeners();
 
       // Afficher un message de succès
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Le rôle de $memberEmail a été modifié avec succès'),
+          content: Text('Le rôle de $memberEmail a été modifié avec succès.'),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
-      // Gérer les erreurs
-      print('Erreur lors de la mise à jour du rôle: $e');
+      // Gestion des erreurs
+      print('Erreur lors de la mise à jour du rôle : $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Erreur lors de la modification du rôle: $e'),
+          content: Text('Erreur : ${e.toString()}'),
           backgroundColor: Colors.red,
         ),
       );
     }
+  }
+
+// Méthodes pour décoder les emails encodés
+  String decodeEmail(String encodedEmail) {
+    return encodedEmail.replaceAll(',', '.'); // Remplace les virgules par des points
   }
 // Méthode spécifique pour mettre à jour le statut d'un projet
   Future<void> updateProjectStatus(String projectId, String newStatus) async {
@@ -301,6 +313,88 @@ class ProjectProvider with ChangeNotifier {
       throw Exception("Erreur lors de la mise à jour du statut: $e");
     }
   }
+
+  Future<void> cleanUpMembers(String projectId) async {
+    try {
+      DocumentSnapshot projectSnapshot = await FirebaseFirestore.instance.collection('projects').doc(projectId).get();
+
+      Map<String, dynamic>? members = projectSnapshot.get('members');
+
+      if (members != null) {
+        Map<String, dynamic> cleanedMembers = {};
+
+        members.forEach((key, value) {
+          // Vérifier si la clé est fragmentée (exemple : `awa@gmail` + `com`)
+          if (key.endsWith('@gmail') && value is Map) {
+            value.forEach((subKey, subValue) {
+              // Reconstruire l'email correctement
+              String combinedEmail = key + '.' + subKey;
+              cleanedMembers[combinedEmail] = subValue;
+            });
+          } else {
+            // Conserver les emails correctement formatés
+            cleanedMembers[key] = value;
+          }
+        });
+
+        // Mettre à jour Firestore avec les données nettoyées
+        await FirebaseFirestore.instance.collection('projects').doc(projectId).update({
+          'members': cleanedMembers,
+        });
+
+        print("Données des membres nettoyées avec succès !");
+      }
+    } catch (e) {
+      print("Erreur lors du nettoyage des membres : $e");
+    }
+  }
+  String encodeEmail(String email) {
+    return email.replaceAll('.', ','); // Remplace les points par des virgules
+  }
+  Future<void> addMember(BuildContext context, Project project, String email, String role) async {
+    try {
+      // Vérifier si l'email existe dans la collection `users`
+      final QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        // L'email existe dans `users`, procéder à l'ajout
+        String encodedEmail = encodeEmail(email);
+
+        await FirebaseFirestore.instance.collection('projects').doc(project.id).update({
+          'members.$encodedEmail': role, // Ajouter le membre avec l'email encodé
+        });
+
+        notifyListeners();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("$email a été ajouté en tant que '$role'."),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        // L'email n'existe pas dans `users`, afficher un message d'erreur
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("L'utilisateur avec l'email $email n'existe pas."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print("Erreur lors de l'ajout du membre : $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Erreur : ${e.toString()}"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+
 
 }
 

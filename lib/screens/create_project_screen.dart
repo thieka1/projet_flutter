@@ -97,8 +97,7 @@ class _CreateProjectPageState extends State<CreateProjectPage> {
     if (_titleController.text.isEmpty ||
         _descriptionController.text.isEmpty ||
         _startDate == null ||
-        _endDate == null ||
-        _selectedMembers.isEmpty) {
+        _endDate == null ) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Veuillez remplir tous les champs et ajouter au moins un membre.")),
       );

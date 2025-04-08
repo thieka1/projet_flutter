@@ -812,76 +812,161 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
 
 // Instance de ProjectProvider
   final ProjectProvider _projectProvider = ProjectProvider();
+  String decodeEmail(String encodedEmail) {
+    if (encodedEmail.contains(',')) {
+      return encodedEmail.replaceAll(',', '.'); // Remplace les virgules par des points
+    }
+    return encodedEmail; // Retourne l'email intact s'il n'est pas encodé
+  }
 
   Widget _buildMembersTab() {
-    // Utilisez Consumer pour écouter les changements dans ProjectProvider
     return Consumer<ProjectProvider>(
       builder: (context, projectProvider, child) {
         final Project project = ModalRoute.of(context)!.settings.arguments as Project;
 
-        List<MapEntry<String, String>> sortedMembers = project.members.entries.toList();
-        sortedMembers.sort((a, b) {
+        // Décoder les emails encodés avant de les utiliser
+        List<MapEntry<String, String>> decodedMembers = project.members.entries.map((entry) {
+          String decodedEmail = decodeEmail(entry.key); // Décoder l'email encodé
+          return MapEntry(decodedEmail, entry.value); // Recréer la liste avec emails décodés
+        }).toList();
+
+        // Trier les membres (exemple : chef de projet en tête)
+        decodedMembers.sort((a, b) {
           if (a.value == "chef de projet") return -1;
           if (b.value == "chef de projet") return 1;
           return 0;
         });
 
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: ListView.builder(
-            itemCount: sortedMembers.length,
-            itemBuilder: (context, index) {
-              String email = sortedMembers[index].key;
-              String role = sortedMembers[index].value;
+        return Scaffold(
+          body: Padding(
+            padding: const EdgeInsets.all(16),
+            child: ListView.builder(
+              itemCount: decodedMembers.length,
+              itemBuilder: (context, index) {
+                String email = decodedMembers[index].key; // Email décodé
+                String role = decodedMembers[index].value; // Rôle associé
 
-              if (role == "chef de projet") {
-                role = "créateur";
-              }
+                if (role == "chef de projet") {
+                  role = "créateur";
+                }
 
-              return FutureBuilder<Map<String, String>>(
-                future: projectProvider.getUserByEmail(email),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Center(child: CircularProgressIndicator());
-                  }
+                return FutureBuilder<Map<String, String>>(
+                  future: projectProvider.getUserByEmail(email),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Center(child: CircularProgressIndicator());
+                    }
 
-                  if (snapshot.hasData) {
-                    String name = snapshot.data!['name']!;
+                    if (snapshot.hasData) {
+                      String name = snapshot.data!['name']!;
 
-                    return GestureDetector(
-                      onTap: () {
-                        _showRoleSelectionDialog(context, project, email);
-                      },
-                      child: Card(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        margin: EdgeInsets.symmetric(vertical: 4),
-                        child: ListTile(
-                          contentPadding: EdgeInsets.all(8),
-                          leading: Icon(Icons.person, color: Colors.blueAccent),
-                          title: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(name, style: TextStyle(fontWeight: FontWeight.bold)),
-                              SizedBox(height: 4),
-                              Text(email, style: TextStyle(color: Colors.grey[600])),
-                            ],
+                      return GestureDetector(
+                        onTap: () {
+                          _showRoleSelectionDialog(context, project, email);
+                        },
+                        child: Card(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          margin: EdgeInsets.symmetric(vertical: 4),
+                          child: ListTile(
+                            contentPadding: EdgeInsets.all(8),
+                            leading: Icon(Icons.person, color: Colors.blueAccent),
+                            title: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(name, style: TextStyle(fontWeight: FontWeight.bold)),
+                                SizedBox(height: 4),
+                                Text(email, style: TextStyle(color: Colors.grey[600])), // Email décodé affiché ici
+                              ],
+                            ),
+                            trailing: _buildRoleBadge(role), // Rôle affiché
                           ),
-                          trailing: _buildRoleBadge(role),
                         ),
-                      ),
-                    );
-                  }
+                      );
+                    }
 
-                  return Container();
-                },
-              );
+                    return Container();
+                  },
+                );
+              },
+            ),
+          ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: () {
+              _showAddMemberDialog(context, project);
             },
+            child: Icon(Icons.add),
+            backgroundColor: Colors.blue,
           ),
         );
       },
     );
   }
+  void _showAddMemberDialog(BuildContext context, Project project) {
+    final TextEditingController emailController = TextEditingController();
+    String selectedRole = "Membre"; // Rôle par défaut
 
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text("Ajouter un membre"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Champ pour saisir l'email
+              TextField(
+                controller: emailController,
+                decoration: InputDecoration(labelText: "Email du membre"),
+              ),
+              SizedBox(height: 16),
+              // Dropdown pour sélectionner le rôle
+              DropdownButtonFormField<String>(
+                value: selectedRole,
+                onChanged: (newValue) {
+                  selectedRole = newValue!;
+                },
+                items: ["Membre", "Admin", "chef de projet"]
+                    .map((role) => DropdownMenuItem(
+                  value: role,
+                  child: Text(role),
+                ))
+                    .toList(),
+                decoration: InputDecoration(labelText: "Rôle"),
+              ),
+            ],
+          ),
+          actions: [
+            // Boutons pour annuler ou ajouter
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Fermer le dialogue
+              },
+              child: Text("Annuler"),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final String email = emailController.text.trim();
+                if (email.isNotEmpty) {
+                  final projectProvider = Provider.of<ProjectProvider>(context, listen: false);
+                  await projectProvider.addMember(context, project, email, selectedRole);
+
+                  Navigator.of(context).pop(); // Fermer le dialogue après ajout
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Veuillez entrer un email."),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: Text("Ajouter"),
+            ),
+          ],
+        );
+      },
+    );
+  }
   void _showRoleSelectionDialog(BuildContext context, Project project, String email) {
     List<String> roles = ["Membre", "Admin", "chef de projet"];
 
