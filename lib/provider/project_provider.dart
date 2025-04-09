@@ -393,6 +393,56 @@ class ProjectProvider with ChangeNotifier {
       );
     }
   }
+// Exemple de fonction pour récupérer les membres du projet avec leurs emails et noms
+  Future<List<Map<String, String>>> getProjectMembers(String projectId) async {
+    try {
+      // Récupérer le document du projet
+      final doc = await FirebaseFirestore.instance
+          .collection('projects')
+          .doc(projectId)
+          .get();
+
+      if (doc.exists) {
+        // Vérifier si le projet a des membres
+        final membersMap = doc['members'] as Map<String, dynamic>;
+
+        // Convertir le Map en liste de Map<String, String> avec uniquement les emails
+        return membersMap.keys.map((email) {
+          return {'email': email};
+        }).toList();
+      } else {
+        print("Le projet n'existe pas");
+        return [];
+      }
+    } catch (e) {
+      print("Erreur lors de la récupération des membres du projet: $e");
+      return [];
+    }
+  }
+
+  Future<String?> getUserNameFromEmail(String? selectedEmail) async {
+    if (selectedEmail == null) return null;
+
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: selectedEmail)
+          .limit(1)
+          .get();
+
+      if (userDoc.docs.isNotEmpty) {
+        return userDoc.docs.first['name']; // Retourne le nom de l'utilisateur
+      } else {
+        return null;
+      }
+    } catch (e) {
+      print("Erreur lors de la récupération du nom de l'utilisateur : $e");
+      return null;
+    }
+  }
+
+
+
 
 
 

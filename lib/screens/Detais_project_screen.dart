@@ -288,7 +288,7 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
           ),
           floatingActionButton: FloatingActionButton(
             onPressed: () {
-              _showAddTaskDialog(context, tacheProvider, projectId);
+              _showAddTaskDialog(context, projectId);
             },
             child: Icon(Icons.add),
             backgroundColor: Colors.blue,
@@ -577,120 +577,134 @@ class _ProfilProjectPageState extends State<ProfilProjectPage>
   }
 
 // Dialogue pour ajouter une nouvelle tâche
-  void _showAddTaskDialog(BuildContext context, TacheProvider tacheProvider, String projectId) {
-    final TextEditingController _titleController = TextEditingController();
-    final TextEditingController _descriptionController = TextEditingController();
-    final TextEditingController _assignedToController = TextEditingController();
-    DateTime _dueDate = DateTime.now();
-    String _priorite = 'Moyenne'; // Valeur par défaut
-
+  void _showAddTaskDialog(BuildContext context, String projectId) {
     showDialog(
       context: context,
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            Widget _buildPriorityRadio(String priority, Color color) {
-              return Row(
-                children: [
-                  Radio<String>(
-                    value: priority,
-                    groupValue: _priorite,
-                    onChanged: (value) {
-                      setState(() {
-                        _priorite = value!;
-                        print("Priorité sélectionnée: $_priorite");
-                      });
-                    },
-                    activeColor: color,
-                  ),
-                  Text(priority),
-                ],
-              );
-            }
+        final tacheProvider = Provider.of<TacheProvider>(context, listen: false);
+        final projectProvider = Provider.of<ProjectProvider>(context, listen: false);
 
-            return AlertDialog(
-              title: Text("Ajouter une tâche"),
-              content: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: _titleController,
-                      decoration: InputDecoration(labelText: 'Titre'),
-                    ),
-                    TextField(
-                      controller: _descriptionController,
-                      decoration: InputDecoration(labelText: 'Description'),
-                    ),
-                    TextField(
-                      controller: _assignedToController,
-                      decoration: InputDecoration(labelText: 'Assignée à'),
-                    ),
-                    ListTile(
-                      title: Text('Date limite : ${_dueDate.toLocal().toString().split(' ')[0]}'),
-                      onTap: () async {
-                        DateTime? pickedDate = await showDatePicker(
-                          context: context,
-                          initialDate: _dueDate,
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2101),
-                        );
-                        if (pickedDate != null) {
-                          setState(() {
-                            _dueDate = pickedDate;
-                          });
-                        }
-                      },
-                    ),
-                    SizedBox(height: 20),
-                    Text(
-                      "Priorité",
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    _buildPriorityRadio("Basse", Colors.green),
-                    _buildPriorityRadio("Moyenne", Colors.orange),
-                    _buildPriorityRadio("Haute", Colors.red),
-                    _buildPriorityRadio("Urgente", Colors.purple),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text("Annuler"),
-                ),
-                TextButton(
-                  onPressed: () {
-                    if (_titleController.text.isNotEmpty &&
-                        _descriptionController.text.isNotEmpty &&
-                        _assignedToController.text.isNotEmpty) {
-                      tacheProvider.addTask(
-                        titre: _titleController.text,
-                        description: _descriptionController.text,
-                        assignedTo: _assignedToController.text,
-                        dueDate: _dueDate,
-                        projetId: projectId,
-                        priorite: _priorite,
-                        statut: 'En attente',
-                      );
-                      Navigator.of(context).pop();
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Veuillez remplir tous les champs')),
-                      );
-                    }
-                  },
-                  child: Text("Ajouter"),
-                ),
-              ],
-            );
-          },
+        final TextEditingController _titleController = TextEditingController();
+        final TextEditingController _descriptionController = TextEditingController();
+        DateTime? _dueDate;
+        String? selectedEmail; // L'email du membre sélectionné
+        String _priorite = 'Moyenne';
+
+        return AlertDialog(
+          title: Text("Ajouter une tâche"),
+          content: SingleChildScrollView(
+            child: FutureBuilder<List<Map<String, String>>>(
+              future: projectProvider.getProjectMembers(projectId), // Appel via le ProjectProvider
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(child: CircularProgressIndicator());
+                } else if (snapshot.hasError) {
+                  return Text("Erreur de chargement des membres");
+                } else {
+                  final membres = snapshot.data ?? [];
+
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: _titleController,
+                        decoration: InputDecoration(labelText: "Titre"),
+                      ),
+                      SizedBox(height: 10),
+                      TextField(
+                        controller: _descriptionController,
+                        decoration: InputDecoration(labelText: "Description"),
+                      ),
+                      SizedBox(height: 10),
+                      // Dropdown pour sélectionner un membre à qui assigner la tâche
+                      DropdownButtonFormField<String>(
+                        value: selectedEmail, // L'email sélectionné
+                        decoration: InputDecoration(labelText: "Assigner à"),
+                        items: membres.map((membre) {
+                          return DropdownMenuItem<String>(
+                            value: membre['email'], // Utiliser l'email directement
+                            child: Text(membre['email'] ?? 'Email non trouvé'), // Affichage de l'email
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          selectedEmail = value; // Mise à jour de l'email sélectionné
+                        },
+                      ),
+                      SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        value: _priorite,
+                        decoration: InputDecoration(labelText: "Priorité"),
+                        items: ['Basse', 'Moyenne', 'Haute', 'Urgente']
+                            .map((priorite) => DropdownMenuItem(
+                          value: priorite,
+                          child: Text(priorite),
+                        ))
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) _priorite = value;
+                        },
+                      ),
+                      SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Text(
+                            _dueDate != null
+                                ? 'Date limite: ${_dueDate!.toLocal().toString().split(' ')[0]}'
+                                : 'Choisir une date limite',
+                          ),
+                          Spacer(),
+                          TextButton(
+                            onPressed: () async {
+                              final pickedDate = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.now(),
+                                firstDate: DateTime.now(),
+                                lastDate: DateTime(2100),
+                              );
+                              if (pickedDate != null) {
+                                _dueDate = pickedDate;
+                              }
+                            },
+                            child: Text("Sélectionner"),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                }
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                if (_titleController.text.isNotEmpty &&
+                    _descriptionController.text.isNotEmpty &&
+                    selectedEmail != null &&
+                    _dueDate != null) {
+                  await tacheProvider.addTask(
+                    titre: _titleController.text,
+                    description: _descriptionController.text,
+                    assignedTo: selectedEmail!, // Assigner la tâche au membre sélectionné
+                    dueDate: _dueDate!,
+                    projetId: projectId,
+                    priorite: _priorite,
+                    statut: 'En attente',
+                  );
+                  Navigator.of(context).pop();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Veuillez remplir tous les champs')),
+                  );
+                }
+              },
+              child: Text("Ajouter"),
+            ),
+          ],
         );
       },
     );
   }
-
-
 
   // Dans votre fonction _buildPriorityRadio:
   Widget _buildPriorityRadio(String priority, Color color) {
